@@ -25,7 +25,8 @@ export default function Navbar() {
   const { user, role, logout } = useAuth()
   const navigate = useNavigate()
 
-  const dashTo = role === 'doctor' || role === 'super-admin' ? '/admin' : '/dashboard'
+  const dashTo =
+    role === 'doctor' || role === 'super-admin' ? '/admin' : role === 'cashier' ? '/cashier' : '/dashboard'
 
   const handleLogout = async () => {
     await logout()

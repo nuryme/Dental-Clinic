@@ -133,6 +133,7 @@ function requireRole(...roles) {
 }
 const verifyAdmin = requireRole('doctor', 'super-admin')
 const verifySuperAdmin = requireRole('super-admin')
+const verifyCashier = requireRole('cashier')
 
 // ---------- auth routes ----------
 // Verify Firebase ID token, upsert the user, issue our JWT cookie.
@@ -154,6 +155,15 @@ app.post('/jwt', async (req, res, next) => {
     if (role === 'super-admin') update.$set = { role: 'super-admin' }
     else setOnInsert.role = 'patient'
     await col.updateOne({ uid }, update, { upsert: true })
+
+    // Backfill the display name if a prior (pre-updateProfile) login stored it
+    // empty — but never clobber a name the user has since set on their profile.
+    if (decoded.name) {
+      await col.updateOne(
+        { uid, $or: [{ name: '' }, { name: { $exists: false } }] },
+        { $set: { name: decoded.name } },
+      )
+    }
 
     const token = jwt.sign({ uid, email }, process.env.JWT_SECRET, { expiresIn: '7d' })
     res.cookie('token', token, cookieOpts).json({ ok: true })
@@ -199,8 +209,22 @@ app.get('/users', verifyToken, verifySuperAdmin, async (req, res, next) => {
 app.patch('/users/:id/role', verifyToken, verifySuperAdmin, async (req, res, next) => {
   try {
     const { role } = req.body
-    if (!['patient', 'doctor'].includes(role)) return res.status(400).json({ message: 'Bad role' })
+    if (!['patient', 'doctor', 'cashier'].includes(role))
+      return res.status(400).json({ message: 'Bad role' })
     await (await users()).updateOne({ _id: new ObjectId(req.params.id) }, { $set: { role } })
+    res.json({ ok: true })
+  } catch (e) {
+    next(e)
+  }
+})
+
+// super-admin: delete a user (never another super-admin). Their past appointments stay as records.
+app.delete('/users/:id', verifyToken, verifySuperAdmin, async (req, res, next) => {
+  try {
+    const target = await (await users()).findOne({ _id: new ObjectId(req.params.id) })
+    if (!target) return res.status(404).json({ message: 'Not found' })
+    if (target.role === 'super-admin') return res.status(403).json({ message: 'Cannot delete a super-admin' })
+    await (await users()).deleteOne({ _id: target._id })
     res.json({ ok: true })
   } catch (e) {
     next(e)
@@ -279,6 +303,7 @@ app.post('/appointments', async (req, res, next) => {
       doctorName: doctor.name,
       service,
       price: SERVICE_PRICES[service] ?? 0,
+      paid: false, // revenue counts only once the cashier marks this paid in person
       date,
       serial,
       createdAt: new Date(),
@@ -325,6 +350,29 @@ app.patch('/appointments/:id/done', verifyToken, verifyAdmin, async (req, res, n
   }
 })
 
+// ---------- cashier routes ----------
+// cashier desk sees every booking across all doctors
+app.get('/appointments/all', verifyToken, verifyCashier, async (req, res, next) => {
+  try {
+    res.json(await (await appointments()).find().sort({ date: -1 }).toArray())
+  } catch (e) {
+    next(e)
+  }
+})
+
+// cashier toggles paid after the patient pays in person; revenue follows this flag
+app.patch('/appointments/:id/paid', verifyToken, verifyCashier, async (req, res, next) => {
+  try {
+    await (await appointments()).updateOne(
+      { _id: new ObjectId(req.params.id) },
+      { $set: { paid: !!req.body.paid } },
+    )
+    res.json({ ok: true })
+  } catch (e) {
+    next(e)
+  }
+})
+
 // last-7-day counts + revenue, plus today/all-time cards
 app.get('/appointments/doctor/stats', verifyToken, verifyAdmin, async (req, res, next) => {
   try {
@@ -344,14 +392,15 @@ app.get('/appointments/doctor/stats', verifyToken, verifyAdmin, async (req, res,
       days.push({
         date: key,
         count: onDay.length,
-        revenue: onDay.reduce((s, a) => s + (a.price || 0), 0),
+        // revenue counts only paid appointments (cashier-confirmed in-person payment)
+        revenue: onDay.reduce((s, a) => s + (a.paid ? a.price || 0 : 0), 0),
       })
     }
 
     res.json({
       totalPatients: all.length,
       todayCount: all.filter((a) => a.date === today).length,
-      totalRevenue: all.reduce((s, a) => s + (a.price || 0), 0),
+      totalRevenue: all.reduce((s, a) => s + (a.paid ? a.price || 0 : 0), 0),
       last7Days: days,
     })
   } catch (e) {

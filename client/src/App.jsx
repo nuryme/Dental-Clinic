@@ -11,6 +11,7 @@ import Register from './pages/main/Register.jsx'
 import DoctorDetail from './pages/main/DoctorDetail.jsx'
 import PatientDashboard from './pages/dashboard/PatientDashboard.jsx'
 import DoctorDashboard from './pages/dashboard/DoctorDashboard.jsx'
+import CashierDashboard from './pages/dashboard/CashierDashboard.jsx'
 
 export default function App() {
   return (
@@ -41,6 +42,14 @@ export default function App() {
         element={
           <ProtectedRoute roles={['doctor', 'super-admin']}>
             <DoctorDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/cashier"
+        element={
+          <ProtectedRoute roles={['cashier']}>
+            <CashierDashboard />
           </ProtectedRoute>
         }
       />

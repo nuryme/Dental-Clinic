@@ -126,6 +126,7 @@ export default function DoctorDashboard() {
                         <th className="px-5 py-3">Phone</th>
                         <th className="px-5 py-3">Service</th>
                         <th className="px-5 py-3">Price</th>
+                        <th className="px-5 py-3">Payment</th>
                         <th className="px-5 py-3">Status</th>
                       </tr>
                     </thead>
@@ -136,6 +137,15 @@ export default function DoctorDashboard() {
                           <td className="px-5 py-3 text-ink/80">{a.phone}</td>
                           <td className="px-5 py-3 text-ink/80">{a.service}</td>
                           <td className="px-5 py-3 font-semibold text-brand">{taka(a.price)}</td>
+                          <td className="px-5 py-3">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                                a.paid ? 'bg-green-600 text-white' : 'bg-sky-muted/30 text-ink/70'
+                              }`}
+                            >
+                              {a.paid ? 'Paid' : 'Unpaid'}
+                            </span>
+                          </td>
                           <td className="px-5 py-3">
                             <button
                               type="button"

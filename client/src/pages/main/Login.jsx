@@ -12,9 +12,12 @@ export default function Login() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // Redirect by role once the auth state populates.
+  // Redirect by role once the auth state populates. Keep in sync with Navbar's dashTo.
   useEffect(() => {
-    if (user) navigate(role === 'doctor' || role === 'super-admin' ? '/admin' : '/dashboard', { replace: true })
+    if (!user) return
+    const dest =
+      role === 'doctor' || role === 'super-admin' ? '/admin' : role === 'cashier' ? '/cashier' : '/dashboard'
+    navigate(dest, { replace: true })
   }, [user, role, navigate])
 
   async function handleSubmit(e) {

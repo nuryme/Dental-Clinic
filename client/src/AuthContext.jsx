@@ -40,8 +40,14 @@ export function AuthProvider({ children }) {
 
   const register = async (name, email, password) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password)
-    if (name) await updateProfile(cred.user, { displayName: name })
-    // onAuthStateChanged will sync the cookie + DB user
+    if (name) {
+      await updateProfile(cred.user, { displayName: name })
+      // onAuthStateChanged already fired during account creation with a nameless
+      // token. Re-sync with a force-refreshed token so the server gets the name.
+      const idToken = await cred.user.getIdToken(true)
+      await api('/jwt', { method: 'POST', body: { idToken } })
+      setUser(await api('/users/me'))
+    }
   }
   const login = (email, password) => signInWithEmailAndPassword(auth, email, password)
   const loginGoogle = () => signInWithPopup(auth, googleProvider)

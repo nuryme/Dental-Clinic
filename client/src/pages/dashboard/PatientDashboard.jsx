@@ -46,6 +46,8 @@ export default function PatientDashboard() {
                   <th className="px-5 py-3">Date</th>
                   <th className="px-5 py-3">Doctor</th>
                   <th className="px-5 py-3">Service</th>
+                  <th className="px-5 py-3">Price</th>
+                  <th className="px-5 py-3">Payment</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-sky-muted/30">
@@ -54,6 +56,16 @@ export default function PatientDashboard() {
                     <td className="px-5 py-3 text-ink/80">{a.date}</td>
                     <td className="px-5 py-3 text-ink/80">{a.doctorName}</td>
                     <td className="px-5 py-3 text-ink/80">{a.service}</td>
+                    <td className="px-5 py-3 font-semibold text-brand">৳{(a.price || 0).toLocaleString()}</td>
+                    <td className="px-5 py-3">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          a.paid ? 'bg-green-600 text-white' : 'bg-sky-muted/30 text-ink/70'
+                        }`}
+                      >
+                        {a.paid ? 'Paid' : 'Unpaid'}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>

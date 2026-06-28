@@ -6,10 +6,16 @@ import { api } from '../../api.js'
 export default function ManageUsers() {
   const [users, setUsers] = useState([])
   const [busyId, setBusyId] = useState(null)
+  const [confirmId, setConfirmId] = useState(null) // user pending delete confirmation
   const [query, setQuery] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all') // all | doctor | cashier | patient
 
   const q = query.trim().toLowerCase()
-  const shown = q ? users.filter((u) => (u.name || '').toLowerCase().includes(q)) : users
+  const shown = users.filter((u) => {
+    if (roleFilter !== 'all' && u.role !== roleFilter) return false
+    if (q && !(u.name || '').toLowerCase().includes(q)) return false
+    return true
+  })
 
   const load = () =>
     api('/users')
@@ -29,16 +35,33 @@ export default function ManageUsers() {
     }
   }
 
+  async function remove(id) {
+    setBusyId(id)
+    try {
+      await api(`/users/${id}`, { method: 'DELETE' })
+      setConfirmId(null)
+      await load()
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   const badge = {
     'super-admin': 'bg-ink text-white',
     doctor: 'bg-brand text-white',
+    cashier: 'bg-green-600 text-white',
     patient: 'bg-brand/10 text-brand',
   }
 
+  const roleBtn = (key) =>
+    `rounded-full px-4 py-2 text-sm font-semibold transition ${
+      roleFilter === key ? 'bg-brand text-white' : 'border border-sky-muted/60 text-ink hover:bg-brand/5'
+    }`
+
   return (
-      <div className="max-w-5xl">
-          <p className="mb-6 text-sm text-ink/60">Promote a patient to doctor, or revert a doctor to patient.</p>
-          <div className="mb-6 flex gap-3">
+      <div>
+          <p className="mb-6 text-sm text-ink/60">Promote a patient to doctor or cashier, or revert them to patient.</p>
+          <div className="mb-6 flex flex-wrap items-center gap-3">
             <input
               type="text"
               value={query}
@@ -46,10 +69,27 @@ export default function ManageUsers() {
               placeholder="Search by name"
               className="w-full max-w-sm rounded-lg border border-sky-muted/60 bg-white px-4 py-2.5 text-sm text-ink outline-none transition focus:border-brand"
             />
-            {query && (
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setRoleFilter('all')} className={roleBtn('all')}>
+                All
+              </button>
+              <button type="button" onClick={() => setRoleFilter('doctor')} className={roleBtn('doctor')}>
+                Doctor
+              </button>
+              <button type="button" onClick={() => setRoleFilter('cashier')} className={roleBtn('cashier')}>
+                Cashier
+              </button>
+              <button type="button" onClick={() => setRoleFilter('patient')} className={roleBtn('patient')}>
+                Patient
+              </button>
+            </div>
+            {(query || roleFilter !== 'all') && (
               <button
                 type="button"
-                onClick={() => setQuery('')}
+                onClick={() => {
+                  setQuery('')
+                  setRoleFilter('all')
+                }}
                 className="rounded-lg border border-sky-muted/60 px-5 py-2.5 text-sm font-semibold text-ink transition hover:bg-brand/5"
               >
                 Clear
@@ -63,14 +103,17 @@ export default function ManageUsers() {
                   <th className="px-5 py-3">Name</th>
                   <th className="px-5 py-3">Email</th>
                   <th className="px-5 py-3">Role</th>
-                  <th className="px-5 py-3">Action</th>
+                  <th className="px-5 py-3">Make doctor</th>
+                  <th className="px-5 py-3">Make cashier</th>
+                  <th className="px-5 py-3">Revoke</th>
+                  <th className="px-5 py-3">Delete</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-sky-muted/30">
                 {shown.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-5 py-6 text-center text-ink/50">
-                      No users match “{query}”.
+                    <td colSpan={7} className="px-5 py-6 text-center text-ink/50">
+                      No users match these filters.
                     </td>
                   </tr>
                 )}
@@ -81,6 +124,7 @@ export default function ManageUsers() {
                     <td className="px-5 py-3">
                       <span className={`rounded-full px-3 py-1 text-xs font-semibold ${badge[u.role] || ''}`}>{u.role}</span>
                     </td>
+                    {/* each action in its own column; empty cell when it doesn't apply */}
                     <td className="px-5 py-3">
                       {u.role === 'patient' && (
                         <button
@@ -92,7 +136,21 @@ export default function ManageUsers() {
                           Make doctor
                         </button>
                       )}
-                      {u.role === 'doctor' && (
+                    </td>
+                    <td className="px-5 py-3">
+                      {u.role === 'patient' && (
+                        <button
+                          type="button"
+                          disabled={busyId === u._id}
+                          onClick={() => setRole(u._id, 'cashier')}
+                          className="rounded-full bg-green-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:-translate-y-0.5 disabled:opacity-60"
+                        >
+                          Make cashier
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      {(u.role === 'doctor' || u.role === 'cashier') && (
                         <button
                           type="button"
                           disabled={busyId === u._id}
@@ -102,6 +160,38 @@ export default function ManageUsers() {
                           Revoke
                         </button>
                       )}
+                    </td>
+                    {/* delete — never for a super-admin; two-step confirm (no window.confirm) */}
+                    <td className="px-5 py-3">
+                      {u.role !== 'super-admin' &&
+                        (confirmId === u._id ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={busyId === u._id}
+                              onClick={() => remove(u._id)}
+                              className="rounded-full bg-red-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmId(null)}
+                              className="rounded-full border border-sky-muted/60 px-4 py-1.5 text-xs font-semibold text-ink transition hover:bg-brand/5"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={busyId === u._id}
+                            onClick={() => setConfirmId(u._id)}
+                            className="rounded-full border border-red-300 px-4 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                          >
+                            Delete
+                          </button>
+                        ))}
                     </td>
                   </tr>
                 ))}
