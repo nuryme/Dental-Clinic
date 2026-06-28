@@ -81,12 +81,16 @@ app.use(
   }),
 )
 
+// Sessions are capped at 5 hours for every role (cookie + JWT both expire).
+const SESSION_MS = 5 * 60 * 60 * 1000
+
 // Same-origin now (SPA + API share the Vercel domain) → plain lax: no cross-site
 // 'none' needed, and lax keeps CSRF protection.
 const cookieOpts = {
   httpOnly: true,
   secure: isProd,
   sameSite: 'lax',
+  maxAge: SESSION_MS,
 }
 
 // ---------- database (cached connection — works locally + on Vercel) ----------
@@ -165,7 +169,7 @@ app.post('/jwt', async (req, res, next) => {
       )
     }
 
-    const token = jwt.sign({ uid, email }, process.env.JWT_SECRET, { expiresIn: '7d' })
+    const token = jwt.sign({ uid, email }, process.env.JWT_SECRET, { expiresIn: SESSION_MS / 1000 })
     res.cookie('token', token, cookieOpts).json({ ok: true })
   } catch (e) {
     next(e)

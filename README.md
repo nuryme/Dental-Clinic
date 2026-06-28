@@ -1,6 +1,6 @@
 # Smile Dental — Aesthetic, Orthodontic & Implant Centre
 
-🔗 **Live site:** https://dental-clinic-one-navy.vercel.app  <!-- replace after deploying -->
+🔗 **Live site:** https://dental-clinic-one-navy.vercel.app
 
 A full-stack dental clinic web app: a patient-facing site with guest & account
 booking, plus role-based dashboards for doctors, a cashier, and a super admin. Frontend and
